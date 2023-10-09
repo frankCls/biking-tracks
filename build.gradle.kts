@@ -107,6 +107,8 @@ repositories {
 
 dependencies {
 
+    implementation(libs.jpx)
+
 //    implementation(libs.jsoup)
 //    implementation(libs.gson)
 //    implementation(libs.csv)
@@ -281,6 +283,7 @@ class Openrndr {
             if ("orx-tensorflow" in orxFeatures) runtimeOnly("org.openrndr.extra:$orxTensorflowBackend-natives-$os:$orxVersion")
             if ("orx-kinect-v1" in orxFeatures) runtimeOnly(orxNatives("orx-kinect-v1"))
             if ("orx-olive" in orxFeatures) implementation(libs.kotlin.script.runtime)
+
         }
     }
 }
