@@ -6,3 +6,8 @@ out
 video/
 screenshots/
 gui-parameters/
+/gradle
+
+.DS_Store
+
+/data/gpx/*gpx
