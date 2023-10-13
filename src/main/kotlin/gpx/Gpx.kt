@@ -34,7 +34,8 @@ fun convertToCoordinates(directory: String, scale: Double, width: Int, height: I
         it.map { wayPoint ->
             val x = r * wayPoint.longitude.toRadians() * aspectRatio
             val y = r * wayPoint.latitude.toRadians()
-            Coordinate(x, y, wayPoint.time.get().toEpochSecond() - startTime)
+            val time = wayPoint.time.get()
+            Coordinate(x, y, time.toEpochSecond() - startTime, Pair(x, y), wayPoint.elevation.get().toDouble())
         }
     }
 
@@ -54,21 +55,32 @@ fun convertToCoordinates(directory: String, scale: Double, width: Int, height: I
     println("xOffset: $xOffset, yOffset: $yOffset")
 
     return Conversion(
-        coordinates.map {
-            it.map { coordinate ->
-                val x = (coordinate.x - left/* + xOffset*/) * scale
-                val y = height - (coordinate.y - top /*+ yOffset*/) * scale
-                Coordinate(x, y, coordinate.time)
-            }
+        routes = coordinates.map {
+            Route(
+                coordinates = it.map { coordinate ->
+                    val x = (coordinate.x - left) * scale
+                    val y = height - (coordinate.y - top) * scale
+                    Coordinate(x, y, coordinate.time, coordinate.realCoordinates, coordinate.elevation)
+                },
+                totalTime = it.last().time - it.first().time
+            )
         },
-        (right - left) * scale,
-        (bottom - top) * scale
-    )
+        width = (right - left) * scale,
+        height = (bottom - top) * scale,
+
+        )
 }
 
-class Coordinate(val x: Double, val y: Double, val time: Long = 0L)
+class Coordinate(
+    val x: Double,
+    val y: Double,
+    val time: Long = 0L,
+    val realCoordinates: Pair<Double, Double>,
+    val elevation: Double
+)
 
-class Conversion(val routes: List<List<Coordinate>>, val width: Double, val height: Double)
+class Route(val coordinates: List<Coordinate>, val totalTime: Long = 0L)
+class Conversion(val routes: List<Route>, val width: Double, val height: Double)
 
 private fun readWayPoints(directory: String): List<List<WayPoint>> {
 
