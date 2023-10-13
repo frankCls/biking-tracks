@@ -63,18 +63,12 @@ fun convertToCoordinates(directory: String, scale: Double, width: Int, height: I
 
     val flattenedCoordinates = coordinates.flatten()
     val xCoordinates = flattenedCoordinates.map { it.position.x }
-    val left = xCoordinates.minOrNull()
-    val right = xCoordinates.maxOrNull()
-    val xOffset = (width - (right!! * scale)) / 2
+    val left = xCoordinates.min()
+    val right = xCoordinates.max()
 
     val yCoordinates = flattenedCoordinates.map { it.position.y }
-    val top = yCoordinates.minOrNull()
-    val bottom = yCoordinates.maxOrNull()
-    val yOffset = (height - ((top!! - (top)) * scale)) / 2
-
-    println("width: $width, height: $height")
-    println("left: 0, right: ${(right - left!!) * scale}, top: 0, bottom: ${(bottom!! - top) * scale}")
-    println("xOffset: $xOffset, yOffset: $yOffset")
+    val top = yCoordinates.min()
+    val bottom = yCoordinates.max()
 
     return Conversion(
         routes = coordinates.map {

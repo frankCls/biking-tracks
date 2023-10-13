@@ -12,17 +12,8 @@ import org.openrndr.math.mod
 import java.io.File
 import java.time.Duration
 
-const val SPEED_UP_FACTOR = 10
+const val SPEED_UP_FACTOR = 1
 const val ELEVATION_SMOOTHING = 0.5
-
-data class TourCoordinate(
-    val position: Vector2 = Vector2.ZERO,
-    val time: Long = 0L,
-    val realCoordinates: Vector2 = Vector2.ZERO,
-    val elevation: Double = 0.0,
-    val length: Double = 0.0,
-    val distance: Double = 0.0
-)
 
 data class Tour(
     val coordinates: List<Point>,
@@ -81,11 +72,16 @@ fun main() {
                 colorBuffer()
             }
 
+            val colors = List(allTours.size) { index ->
+                hsl(index * 40.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(0.7)
+            }
+
+
             drawer.isolatedWithTarget(routesRenderTarget) {
                 drawer.translate(Vector2((width - conversion.width) / 2, (-height + conversion.height) / 2))
                 drawer.clear(ColorRGBa.TRANSPARENT)
                 allTours.forEachIndexed { i, it ->
-                    drawer.stroke = hsl(i * 40.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(0.7)
+                    drawer.stroke = colors[i]
                     drawer.strokeWeight = 0.7
                     drawer.lineSegments(it.coordinates.map { coord -> coord.position })
                 }
@@ -127,8 +123,7 @@ fun main() {
 
                 drawer.isolatedWithTarget(elevationRenderTarget) {
                     drawer.clear(ColorRGBa.TRANSPARENT)
-                    drawer.stroke = ColorRGBa.WHITE.opacify(0.2)
-                    drawer.strokeWeight = 0.5
+
 
                     if (done.isNotEmpty()) {
                         val vectors = elevations.mapIndexed { index, it ->
@@ -141,14 +136,22 @@ fun main() {
                                 )
                             }
                         }
-                        drawer.lineSegments(vectors)
 
+                        drawer.stroke = colors[runningTour]
+                        drawer.strokeWeight = 3.0
+                        drawer.lineSegments(vectors.take(if (done.isEmpty()) 0 else done.size - 1))
+
+                        drawer.stroke = ColorRGBa.WHITE.opacify(0.2)
+                        drawer.strokeWeight = 0.5
+                        drawer.lineSegments(vectors.takeLast(coordinates.size - done.size))
                         val elevationsDone = elevations.take(if (done.isEmpty()) 0 else done.size - 1)
 
-                        drawer.circle(
-                            Vector2(elevationsDone.last().distance * d, height - elevationsDone.last().height),
-                            4.0
-                        )
+                        if (elevationsDone.isNotEmpty()) {
+                            drawer.circle(
+                                Vector2(elevationsDone.last().distance * d, height - elevationsDone.last().height),
+                                4.0
+                            )
+                        }
                     }
                 }
 
@@ -177,7 +180,12 @@ fun main() {
                             "${textPadded("distance:")}${String.format("%.2f", done.last().distance / 1000)} km",
                             "${textPadded("time:")}${formatDuration(done.last().time)}",
                             "${textPadded("speed:")}${String.format("%.2f", speed)} km/h",
-                            "${textPadded("height:")}${String.format("%.2f", done.last().elevation / ELEVATION_SMOOTHING)} ",
+                            "${textPadded("height:")}${
+                                String.format(
+                                    "%.2f",
+                                    done.last().elevation / ELEVATION_SMOOTHING
+                                )
+                            } ",
                         ).forEachIndexed { index, text ->
                             drawer.text(text, 30.0, 30.0 + index * 20)
                         }
