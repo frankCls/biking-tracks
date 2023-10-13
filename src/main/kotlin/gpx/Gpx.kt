@@ -2,10 +2,13 @@ package gpx
 
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.WayPoint
+import org.openrndr.math.Vector2
 import java.io.File
 import java.nio.file.Files
+import java.text.FieldPosition
 import java.util.stream.Collectors
 import kotlin.math.cos
+import kotlin.math.sqrt
 
 
 private const val EARTH_RADIUS = 6_371_000.0 // meters
@@ -29,46 +32,78 @@ fun convertToCoordinates(directory: String, scale: Double, width: Int, height: I
     val aspectRatio = cos(centerLatitude)
 
     val r = EARTH_RADIUS
-    val coordinates = points.mapIndexed { index, it ->
-        val startTime = it.first().time.get().toEpochSecond()
-        it.map { wayPoint ->
+    val coordinates = points.map { tour ->
+        var tempDistance = 0.0
+        val startTime = tour.first().time.get().toEpochSecond()
+        tour.mapIndexed { index, wayPoint ->
             val x = r * wayPoint.longitude.toRadians() * aspectRatio
             val y = r * wayPoint.latitude.toRadians()
-            Coordinate(x, y, wayPoint.time.get().toEpochSecond() - startTime)
+            val time = wayPoint.time.get()
+            val length = if(index == 0) {
+                0.0
+            } else {
+                val previous = tour[index - 1]
+                val previousX = r * previous.longitude.toRadians() * aspectRatio
+                val previousY = r * previous.latitude.toRadians()
+                val dx = x - previousX
+                val dy = y - previousY
+                sqrt(dx * dx + dy * dy)
+            }
+            tempDistance += length
+            Point(
+                position = Vector2(x, y),
+                time=time.toEpochSecond() - startTime,
+                length = length,
+                distance = tempDistance,
+                realCoordinates = Vector2(x, y),
+                elevation = wayPoint.elevation.get().toDouble()
+            )
         }
     }
 
     val flattenedCoordinates = coordinates.flatten()
-    val xCoordinates = flattenedCoordinates.map { it.x }
-    val left = xCoordinates.minOrNull()
-    val right = xCoordinates.maxOrNull()
-    val xOffset = (width - (right!! * scale)) / 2
+    val xCoordinates = flattenedCoordinates.map { it.position.x }
+    val left = xCoordinates.min()
+    val right = xCoordinates.max()
 
-    val yCoordinates = flattenedCoordinates.map { it.y }
-    val top = yCoordinates.minOrNull()
-    val bottom = yCoordinates.maxOrNull()
-    val yOffset = (height - ((top!! - (top)) * scale)) / 2
-
-    println("width: $width, height: $height")
-    println("left: 0, right: ${(right - left!!) * scale}, top: 0, bottom: ${(bottom!! - top) * scale}")
-    println("xOffset: $xOffset, yOffset: $yOffset")
+    val yCoordinates = flattenedCoordinates.map { it.position.y }
+    val top = yCoordinates.min()
+    val bottom = yCoordinates.max()
 
     return Conversion(
-        coordinates.map {
-            it.map { coordinate ->
-                val x = (coordinate.x - left/* + xOffset*/) * scale
-                val y = height - (coordinate.y - top /*+ yOffset*/) * scale
-                Coordinate(x, y, coordinate.time)
-            }
+        routes = coordinates.map {
+            Route(
+                points = it.map { coordinate ->
+                    val x = (coordinate.position.x - left) * scale
+                    val y = height - (coordinate.position.y - top) * scale
+                    Point(
+                        position = Vector2(x, y),
+                        coordinate.time,
+                        coordinate.length,
+                        coordinate.distance,
+                        coordinate.realCoordinates,
+                        coordinate.elevation)
+                },
+                totalTime = it.last().time - it.first().time
+            )
         },
-        (right - left) * scale,
-        (bottom - top) * scale
-    )
+        width = (right - left) * scale,
+        height = (bottom - top) * scale,
+
+        )
 }
 
-class Coordinate(val x: Double, val y: Double, val time: Long = 0L)
+class Point(
+    val position: Vector2 = Vector2.ZERO,
+    val time: Long = 0L,
+    val length: Double = 0.0,
+    val distance: Double = 0.0,
+    val realCoordinates: Vector2,
+    val elevation: Double
+)
 
-class Conversion(val routes: List<List<Coordinate>>, val width: Double, val height: Double)
+class Route(val points: List<Point>, val totalTime: Long = 0L)
+class Conversion(val routes: List<Route>, val width: Double, val height: Double)
 
 private fun readWayPoints(directory: String): List<List<WayPoint>> {
 
@@ -77,11 +112,11 @@ private fun readWayPoints(directory: String): List<List<WayPoint>> {
         .filter(Files::isRegularFile)
         .map { it.toFile().absolutePath }.toList()
 
-    val points: MutableList<List<WayPoint>> = mutableListOf()
+    val wayPoints: MutableList<List<WayPoint>> = mutableListOf()
     for (file in files) {
         try {
             val read = GPX.read(file)
-            points.add(
+            wayPoints.add(
                 read.tracks()
                     .flatMap { it.segments() }
                     .flatMap { it.points() }
@@ -92,6 +127,6 @@ private fun readWayPoints(directory: String): List<List<WayPoint>> {
         }
 
     }
-    return points.toList()
+    return wayPoints.toList()
 }
 
