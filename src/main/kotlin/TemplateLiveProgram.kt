@@ -12,7 +12,7 @@ import org.openrndr.math.mod
 import java.io.File
 import java.time.Duration
 
-const val SPEED_UP_FACTOR = 1
+const val SPEED_UP_FACTOR = 20
 const val ELEVATION_SMOOTHING = 0.5
 
 data class Tour(
@@ -56,6 +56,8 @@ fun main() {
                     )
                 }
 
+            val totalDistanceOverTours = allTours.sumOf { it.totalDistance }
+            println(totalDistanceOverTours / 1000)
             var runningTour: Int = 0
             var tour: Tour
 
@@ -137,6 +139,15 @@ fun main() {
                             }
                         }
 
+                        for(i in 0..tour.maxElevation.toInt() step 10) {
+                            drawer.stroke = ColorRGBa.WHITE.opacify(0.3)
+                            drawer.strokeWeight = 0.2
+                            drawer.lineSegment(
+                                Vector2(0.0, height - i * ELEVATION_SMOOTHING),
+                                Vector2(width.toDouble(), height - i * ELEVATION_SMOOTHING)
+                            )
+                        }
+
                         drawer.stroke = colors[runningTour]
                         drawer.strokeWeight = 3.0
                         drawer.lineSegments(vectors.take(if (done.isEmpty()) 0 else done.size - 1))
@@ -152,6 +163,8 @@ fun main() {
                                 4.0
                             )
                         }
+
+
                     }
                 }
 
@@ -174,7 +187,7 @@ fun main() {
                         drawer.fontMap = font
 
                         listOf(
-                            "${textPadded("total distance:")}${String.format("%.2f", tour.totalDistance / 1000)}",
+                            "${textPadded("total distance:")}${String.format("%.2f", tour.totalDistance / 1000)} km",
                             "${textPadded("average speed:")}${String.format("%.2f", tour.averageSpeed)} km/h",
                             "${textPadded("total time:")}${formatDuration(tour.totalTime)}",
                             "${textPadded("distance:")}${String.format("%.2f", done.last().distance / 1000)} km",
