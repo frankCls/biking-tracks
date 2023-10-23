@@ -35,28 +35,24 @@ fun convertToCoordinates(directory: String, scale: Double, width: Int, height: I
     val coordinates = points.map { tour ->
         var tempDistance = 0.0
         val startTime = tour.first().time.get().toEpochSecond()
-        tour.mapIndexed { index, wayPoint ->
-            val x = r * wayPoint.longitude.toRadians() * aspectRatio
-            val y = r * wayPoint.latitude.toRadians()
-            val time = wayPoint.time.get()
-            val length = if(index == 0) {
-                0.0
-            } else {
-                val previous = tour[index - 1]
-                val previousX = r * previous.longitude.toRadians() * aspectRatio
-                val previousY = r * previous.latitude.toRadians()
-                val dx = x - previousX
-                val dy = y - previousY
-                sqrt(dx * dx + dy * dy)
-            }
+
+        tour.zipWithNext { a, b ->
+            val x = r * b.longitude.toRadians() * aspectRatio
+            val y = r * b.latitude.toRadians()
+            val time = b.time.get()
+            val previousX = r * a.longitude.toRadians() * aspectRatio
+            val previousY = r * a.latitude.toRadians()
+            val dx = x - previousX
+            val dy = y - previousY
+            val length = sqrt(dx * dx + dy * dy)
             tempDistance += length
             Point(
                 position = Vector2(x, y),
-                time=time.toEpochSecond() - startTime,
+                time = time.toEpochSecond() - startTime,
                 length = length,
                 distance = tempDistance,
                 realCoordinates = Vector2(x, y),
-                elevation = wayPoint.elevation.get().toDouble()
+                elevation = b.elevation.get().toDouble()
             )
         }
     }
@@ -82,15 +78,15 @@ fun convertToCoordinates(directory: String, scale: Double, width: Int, height: I
                         coordinate.length,
                         coordinate.distance,
                         coordinate.realCoordinates,
-                        coordinate.elevation)
+                        coordinate.elevation
+                    )
                 },
                 totalTime = it.last().time - it.first().time
             )
         },
         width = (right - left) * scale,
-        height = (bottom - top) * scale,
-
-        )
+        height = (bottom - top) * scale
+    )
 }
 
 class Point(

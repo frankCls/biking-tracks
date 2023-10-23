@@ -144,17 +144,13 @@ fun main() {
 
                     if (done.isNotEmpty()) {
                         val vectors = elevations.mapIndexed { index, it ->
-                            if (index == 0) {
-                                Vector2(0.0, height - it.height)
-                            } else {
-                                Vector2(
-                                    it.distance * d,
-                                    height - it.height
-                                )
-                            }
+                            Vector2(
+                                x = if (index == 0) 0.0 else it.distance * d,
+                                y = height - it.height
+                            )
                         }
 
-                        for(i in 0..tour.maxElevation.toInt() step 10) {
+                        for (i in 0..tour.maxElevation.toInt() step 10) {
                             drawer.stroke = ColorRGBa.WHITE.opacify(0.3)
                             drawer.strokeWeight = 0.2
                             drawer.lineSegment(
@@ -178,8 +174,6 @@ fun main() {
                                 4.0
                             )
                         }
-
-
                     }
                 }
 
