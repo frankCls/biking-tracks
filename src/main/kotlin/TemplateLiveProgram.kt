@@ -6,6 +6,7 @@ import org.openrndr.color.hsl
 import org.openrndr.draw.isolatedWithTarget
 import org.openrndr.draw.loadFont
 import org.openrndr.draw.renderTarget
+import org.openrndr.extra.noise.Random
 import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.math.Vector2
 import org.openrndr.math.mod
@@ -36,6 +37,19 @@ fun main() {
         }
 
         oliveProgram {
+            val colorList = listOf(
+//        ColorRGBa.fromHex(0x001219),
+                ColorRGBa.fromHex(0x005f73),
+                ColorRGBa.fromHex(0x0a9396),
+                ColorRGBa.fromHex(0x94d2bd),
+                ColorRGBa.fromHex(0xe9d8a6),
+                ColorRGBa.fromHex(0xee9b00),
+                ColorRGBa.fromHex(0xca6702),
+                ColorRGBa.fromHex(0xbb3e03),
+                ColorRGBa.fromHex(0xae2012),
+                ColorRGBa.fromHex(0x9b2226)
+            )
+
             var counter = seconds.toInt()
 
             val font = loadFont("data/fonts/default.otf", 24.0)
@@ -75,7 +89,8 @@ fun main() {
             }
 
             val colors = List(allTours.size) { index ->
-                hsl(index * 40.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(0.7)
+//                hsl(index * 40.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(0.7)
+                Random.pick(colorList).opacify(0.3)
             }
 
 
