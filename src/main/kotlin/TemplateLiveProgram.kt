@@ -23,7 +23,8 @@ data class Tour(
     val maxElevation: Double = 0.0,
     val minElevation: Double = 0.0,
     val averageSpeed: Double = 0.0,
-    val distance: Double = 0.0
+    val distance: Double = 0.0,
+    val color: ColorRGBa = ColorRGBa.WHITE
 )
 
 data class Elevation(val distance: Double, val height: Double)
@@ -37,7 +38,7 @@ fun main() {
         }
 
         oliveProgram {
-            val colorList = listOf(
+            val colors = listOf(
 //        ColorRGBa.fromHex(0x001219),
                 ColorRGBa.fromHex(0x005f73),
                 ColorRGBa.fromHex(0x0a9396),
@@ -66,7 +67,8 @@ fun main() {
                         totalDistance = totalDistance,
                         maxElevation = tour.points.maxOf { it.elevation },
                         minElevation = tour.points.minOf { it.elevation },
-                        averageSpeed = totalDistance / (tour.totalTime / 3.6)
+                        averageSpeed = totalDistance / (tour.totalTime / 3.6),
+                        color = Random.pick(colors)
                     )
                 }
 
@@ -88,17 +90,17 @@ fun main() {
                 colorBuffer()
             }
 
-            val colors = List(allTours.size) { index ->
-//                hsl(index * 40.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(0.7)
-                Random.pick(colorList).opacify(0.3)
-            }
+//            val colors = List(allTours.size) { index ->
+////                hsl(index * 40.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(0.7)
+//                Random.pick(colorList).opacify(0.3)
+//            }
 
 
             drawer.isolatedWithTarget(routesRenderTarget) {
                 drawer.translate(Vector2((width - conversion.width) / 2, (-height + conversion.height) / 2))
                 drawer.clear(ColorRGBa.TRANSPARENT)
                 allTours.forEachIndexed { i, it ->
-                    drawer.stroke = colors[i]
+                    drawer.stroke = it.color.opacify(0.3)
                     drawer.strokeWeight = 0.7
                     drawer.lineSegments(it.coordinates.map { coord -> coord.position })
                 }
@@ -133,7 +135,8 @@ fun main() {
                 drawer.isolatedWithTarget(liveRoutesRenderTarget) {
                     drawer.translate(Vector2((width - conversion.width) / 2, (-height + conversion.height) / 2))
                     drawer.clear(ColorRGBa.TRANSPARENT)
-                    drawer.stroke = hsl(counter * 90.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(1.0)
+//                    drawer.stroke = hsl(counter * 90.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(1.0)
+                    drawer.stroke = allTours[runningTour].color.opacify(1.0)
                     drawer.strokeWeight = 4.0
                     drawer.lineSegments(done.map { coord -> coord.position })
                 }
@@ -159,7 +162,7 @@ fun main() {
                             )
                         }
 
-                        drawer.stroke = colors[runningTour]
+                        drawer.stroke = allTours[runningTour].color
                         drawer.strokeWeight = 3.0
                         drawer.lineSegments(vectors.take(if (done.isEmpty()) 0 else done.size - 1))
 
