@@ -101,13 +101,24 @@ plugins {
 }
 
 repositories {
+
+    maven {
+        url = uri("https://repo.osgeo.org/repository/release/")
+    }
+//    https://maven.geotoolkit.org (jai-core is here)
+    maven {
+        url = uri("https://maven.geotoolkit.org/")
+    }
     mavenCentral()
     mavenLocal()
+
 }
 
 dependencies {
 
     implementation(libs.jpx)
+    implementation(libs.geotoolsShapefile)
+    implementation(libs.geotoolsEpsgHsqldb)
 
 //    implementation(libs.jsoup)
 //    implementation(libs.gson)

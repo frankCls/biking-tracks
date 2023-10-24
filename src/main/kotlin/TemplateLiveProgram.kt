@@ -1,8 +1,6 @@
-import gpx.Point
-import gpx.convertToCoordinates
+import gpx.*
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
-import org.openrndr.color.hsl
 import org.openrndr.draw.isolatedWithTarget
 import org.openrndr.draw.loadFont
 import org.openrndr.draw.renderTarget
@@ -10,6 +8,10 @@ import org.openrndr.extra.noise.Random
 import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.math.Vector2
 import org.openrndr.math.mod
+import pixels.GpsPoint
+import pixels.Point
+import pixels.transformToPixelCoordinates
+import shapefile.communes
 import java.io.File
 import java.time.Duration
 
@@ -38,8 +40,9 @@ fun main() {
         }
 
         oliveProgram {
+            //define colors
             val colors = listOf(
-//        ColorRGBa.fromHex(0x001219),
+                //        ColorRGBa.fromHex(0x001219),
                 ColorRGBa.fromHex(0x005f73),
                 ColorRGBa.fromHex(0x0a9396),
                 ColorRGBa.fromHex(0x94d2bd),
@@ -51,11 +54,43 @@ fun main() {
                 ColorRGBa.fromHex(0x9b2226)
             )
 
+            // define counter to help keeping track of which tour is running
             var counter = seconds.toInt()
 
             val font = loadFont("data/fonts/default.otf", 24.0)
-            val file = File("data/gpx")
-            val conversion = convertToCoordinates(file.absolutePath, 0.015, width, height)
+
+            // load gpx file and convert to coordinates
+            val gpxFile = File("data/gpx")
+            val scale = 0.015
+            val points = readWayPoints(gpxFile.absolutePath)
+            val gpsPoints =
+                points
+                    .mapIndexed { i, it ->
+                        "$i" to it.map { wayPoint ->
+                            GpsPoint(
+                                latitude = wayPoint.latitude.toDouble(),
+                                longitude = wayPoint.longitude.toDouble(),
+                                time = wayPoint.time.get().toEpochSecond(),
+                                elevation = wayPoint.elevation.get().toDouble()
+                            )
+                        }
+                    }.toMap()
+
+            val conversion = transformToPixelCoordinates(gpsPoints, scale, width, height)
+
+            // calculate min and max latitudes and longitudes
+            val minX = conversion.routes.minOf { it.points.minOf { point -> point.realCoordinates.x } }
+            val maxX = conversion.routes.maxOf { it.points.maxOf { point -> point.realCoordinates.x } }
+            val minY = conversion.routes.minOf { it.points.minOf { point -> point.realCoordinates.y } }
+            val maxY = conversion.routes.maxOf { it.points.maxOf { point -> point.realCoordinates.y } }
+
+            val shapefile = File("data/shapefile/belgium-communes/communes_L08.shp")
+            val communes = communes(shapefile, left = minX, top = minY, right = maxX, bottom = maxY)
+            val communesGpsPoints = communes.associate { commune ->
+                commune.name to
+                        commune.geometry.map { coordinate -> GpsPoint(coordinate.x, coordinate.y, 0, 0.0) }
+            }
+            val communesCoordinates = transformToPixelCoordinates(communesGpsPoints, scale, width, height).routes
 
             val allTours = conversion.routes
                 .shuffled()
@@ -77,6 +112,10 @@ fun main() {
             var runningTour: Int = 0
             var tour: Tour
 
+            val communesRenderTarget = renderTarget(width, height) {
+                colorBuffer()
+            }
+
             val routesRenderTarget = renderTarget(width, height) {
                 colorBuffer()
             }
@@ -90,14 +129,22 @@ fun main() {
                 colorBuffer()
             }
 
-//            val colors = List(allTours.size) { index ->
-////                hsl(index * 40.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(0.7)
-//                Random.pick(colorList).opacify(0.3)
-//            }
+            drawer.isolatedWithTarget(communesRenderTarget) {
+                drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
+                drawer.clear(ColorRGBa.TRANSPARENT)
+                drawer.stroke = ColorRGBa.WHITE.opacify(0.3)
+                drawer.strokeWeight = 0.1
+                communesCoordinates.forEach {
+                    drawer.lineSegments(
+                        it.points.map { point ->
+                            point.position
+                        })
+                }
+            }
 
 
             drawer.isolatedWithTarget(routesRenderTarget) {
-                drawer.translate(Vector2((width - conversion.width) / 2, (-height + conversion.height) / 2))
+                drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
                 drawer.clear(ColorRGBa.TRANSPARENT)
                 allTours.forEachIndexed { i, it ->
                     drawer.stroke = it.color.opacify(0.3)
@@ -106,23 +153,27 @@ fun main() {
                 }
             }
 
-
             var elapsedTime = 0L
 
             extend {
 
                 drawer.clear(ColorRGBa.BLACK)
+
+                // calculate which tour is running
                 runningTour = mod(counter, allTours.size)
                 tour = allTours[runningTour]
 
                 val coordinates = tour.coordinates
+
+                // calculate which points are done
                 val done =
                     coordinates.filter { point -> point.time < (seconds.toLong() - elapsedTime) * SPEED_UP_FACTOR }
+
+                // if all points are done, increase counter and add time to elapsed time
                 if (done.size == coordinates.size) {
                     counter++
                     elapsedTime += tour.totalTime.toInt() / SPEED_UP_FACTOR
                 }
-
 
                 val d = width / tour.totalDistance
                 val elevations = List(coordinates.size) {
@@ -133,7 +184,7 @@ fun main() {
                 }
 
                 drawer.isolatedWithTarget(liveRoutesRenderTarget) {
-                    drawer.translate(Vector2((width - conversion.width) / 2, (-height + conversion.height) / 2))
+                    drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
                     drawer.clear(ColorRGBa.TRANSPARENT)
 //                    drawer.stroke = hsl(counter * 90.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(1.0)
                     drawer.stroke = allTours[runningTour].color.opacify(1.0)
@@ -143,34 +194,36 @@ fun main() {
 
                 drawer.isolatedWithTarget(elevationRenderTarget) {
                     drawer.clear(ColorRGBa.TRANSPARENT)
-
-
                     if (done.isNotEmpty()) {
-                        val vectors = elevations.mapIndexed { index, it ->
+                        val elevationProfile = elevations.mapIndexed { index, it ->
                             Vector2(
                                 x = if (index == 0) 0.0 else it.distance * d,
                                 y = height - it.height
                             )
                         }
 
+                        // draw elevation height lines on profile
                         for (i in 0..tour.maxElevation.toInt() step 10) {
                             drawer.stroke = ColorRGBa.WHITE.opacify(0.3)
-                            drawer.strokeWeight = 0.2
+                            drawer.strokeWeight = 0.1
                             drawer.lineSegment(
                                 Vector2(0.0, height - i * ELEVATION_SMOOTHING),
                                 Vector2(width.toDouble(), height - i * ELEVATION_SMOOTHING)
                             )
                         }
 
+                        // draw elevation profile of points done
                         drawer.stroke = allTours[runningTour].color
                         drawer.strokeWeight = 3.0
-                        drawer.lineSegments(vectors.take(if (done.isEmpty()) 0 else done.size - 1))
+                        drawer.lineSegments(elevationProfile.take(if (done.isEmpty()) 0 else done.size - 1))
 
+                        // draw elevation profile of remaining points
                         drawer.stroke = ColorRGBa.WHITE.opacify(0.2)
                         drawer.strokeWeight = 0.5
-                        drawer.lineSegments(vectors.takeLast(coordinates.size - done.size))
+                        drawer.lineSegments(elevationProfile.takeLast(coordinates.size - done.size))
                         val elevationsDone = elevations.take(if (done.isEmpty()) 0 else done.size - 1)
 
+                        // draw a dot on the actual point
                         if (elevationsDone.isNotEmpty()) {
                             drawer.circle(
                                 Vector2(elevationsDone.last().distance * d, height - elevationsDone.last().height),
@@ -217,6 +270,7 @@ fun main() {
                     }
                 }
 
+                drawer.image(communesRenderTarget.colorBuffer(0))
                 drawer.image(liveRoutesRenderTarget.colorBuffer(0))
                 drawer.image(routesRenderTarget.colorBuffer(0))
                 drawer.image(elevationRenderTarget.colorBuffer(0))
