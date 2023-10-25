@@ -101,13 +101,26 @@ plugins {
 }
 
 repositories {
+
+    maven {
+        url = uri("https://repo.osgeo.org/repository/release/")
+    }
+//    https://maven.geotoolkit.org (jai-core is here)
+    maven {
+        url = uri("https://maven.geotoolkit.org/")
+    }
     mavenCentral()
     mavenLocal()
+
 }
 
 dependencies {
 
     implementation(libs.jpx)
+//    implementation(libs.geotools)
+    implementation(libs.geotoolsExtension)
+    implementation(libs.geotoolsShapefile)
+    implementation(libs.geotoolsEpsgHsqldb)
 
 //    implementation(libs.jsoup)
 //    implementation(libs.gson)
@@ -191,7 +204,7 @@ tasks {
 
 tasks.register<Zip>("jpackageZip") {
     archiveFileName.set("openrndr-application.zip")
-    from("$buildDir/jpackage") {
+    from("${layout.buildDirectory}/jpackage") {
         include("**/*")
     }
 }
