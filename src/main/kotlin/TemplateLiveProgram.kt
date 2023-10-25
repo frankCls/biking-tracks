@@ -6,9 +6,10 @@ import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.math.Vector2
 import org.openrndr.math.mod
 import geotools.communes
-import geotools.downloadAerialView
 import org.openrndr.draw.*
 import org.openrndr.math.map
+import org.openrndr.shape.Segment
+import org.openrndr.shape.ShapeContour
 import pixels.*
 import java.io.File
 import java.time.Duration
@@ -78,10 +79,10 @@ fun main() {
             val conversion = transformToPixelCoordinates(gpsPoints, scale, width, height)
 
             // calculate min and max latitudes and longitudes
-            val minX = conversion.routes.minOf { it.points.minOf { point -> point.realCoordinates.x } }
-            val maxX = conversion.routes.maxOf { it.points.maxOf { point -> point.realCoordinates.x } }
-            val minY = conversion.routes.minOf { it.points.minOf { point -> point.realCoordinates.y } }
-            val maxY = conversion.routes.maxOf { it.points.maxOf { point -> point.realCoordinates.y } }
+            val minX = conversion.segments.minOf { it.points.minOf { point -> point.realCoordinates.x } }
+            val maxX = conversion.segments.maxOf { it.points.maxOf { point -> point.realCoordinates.x } }
+            val minY = conversion.segments.minOf { it.points.minOf { point -> point.realCoordinates.y } }
+            val maxY = conversion.segments.maxOf { it.points.maxOf { point -> point.realCoordinates.y } }
 
             // get map
 
@@ -94,9 +95,9 @@ fun main() {
                 commune.name to
                         commune.geometry.map { coordinate -> GpsPoint(coordinate.x, coordinate.y, 0, 0.0) }
             }
-            val communesCoordinates = transformToPixelCoordinates(communesGpsPoints, scale, width, height).routes
+            val communesCoordinates = transformToPixelCoordinates(communesGpsPoints, scale, width, height).segments
 
-            val allTours = conversion.routes
+            val allTours = conversion.segments
                 .shuffled()
                 .map { tour ->
                     val totalDistance = tour.points.sumOf { it.length }
@@ -122,6 +123,7 @@ fun main() {
 
             val communesRenderTarget = renderTarget(width, height) {
                 colorBuffer()
+                depthBuffer()
             }
 
             val routesRenderTarget = renderTarget(width, height) {
@@ -137,21 +139,33 @@ fun main() {
                 colorBuffer()
             }
 
-
-
             drawer.isolatedWithTarget(communesRenderTarget) {
-                drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
                 drawer.clear(ColorRGBa.TRANSPARENT)
+                drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
                 drawer.stroke = ColorRGBa.WHITE.opacify(0.3)
-                drawer.strokeWeight = 0.1
-                communesCoordinates.forEach {
-                    drawer.lineSegments(
-                        it.points.map { point ->
-                            point.position
-                        })
+                drawer.fill = null
+                drawer.strokeWeight = 0.5
+                val contours = communesCoordinates.map {
+                    ShapeContour(
+                        it.points.zipWithNext { a, b ->
+                            Segment(
+                                Vector2(
+                                    a.position.x,
+                                    a.position.y
+                                ),
+                                Vector2(
+                                    b.position.x,
+                                    b.position.y
+                                )
+                            )
+                        }, false
+                    ).shape
                 }
+                contours.forEachIndexed { index, it ->
+//                    it.name = communes[index].name
+                }
+                drawer.shapes(contours)
             }
-
 
             drawer.isolatedWithTarget(routesRenderTarget) {
                 drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
@@ -195,7 +209,6 @@ fun main() {
 
                 drawer.isolatedWithTarget(backgroundAerialView) {
                     drawer.clear(ColorRGBa.TRANSPARENT)
-//                drawer.drawStyle.colorMatrix = grayscale(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)
                     drawer.drawStyle.colorMatrix =
                         tint(
                             ColorRGBa.WHITE.opacify(

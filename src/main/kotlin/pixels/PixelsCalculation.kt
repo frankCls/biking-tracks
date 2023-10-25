@@ -27,10 +27,6 @@ fun calculateCoordinates(
 }
 
 
-
-
-
-
 fun calculatePixelCoordinate(latitude: Double, longitude: Double, aspectRatio: Double): Pair<Double, Double> {
     return Pair(
         EARTH_RADIUS * Math.toRadians(longitude) * aspectRatio,
@@ -64,30 +60,33 @@ fun transformToPixelCoordinates(
         gpsPointsList.map { Math.toRadians(it.longitude) }.average() // longitude close to the center of the map (λ0).
     val aspectRatio = cos(centerLatitude)
 
-    val coordinates = gpsPoints.values.map { tour ->
+    val coordinates = gpsPoints.entries.map { entry ->
+        val tour = entry.value
         var tempDistance = 0.0
         val startTime = tour.first().time
-
-        tour.zipWithNext { a, b ->
-            val (x, y) = calculatePixelCoordinate(b.latitude, b.longitude, aspectRatio)
-            val time = b.time
-            val (previousX, previousY) = calculatePixelCoordinate(a.latitude, a.longitude, aspectRatio)
-            val dx = x - previousX
-            val dy = y - previousY
-            val length = sqrt(dx * dx + dy * dy)
-            tempDistance += length
-            Point(
-                position = Vector2(x, y),
-                time = time - startTime,
-                length = length,
-                distance = tempDistance,
-                realCoordinates = Vector2(a.latitude, a.longitude),
-                elevation = b.elevation
-            )
-        }
+        Pair(
+            entry.key,
+            tour.zipWithNext { a, b ->
+                val (x, y) = calculatePixelCoordinate(b.latitude, b.longitude, aspectRatio)
+                val time = b.time
+                val (previousX, previousY) = calculatePixelCoordinate(a.latitude, a.longitude, aspectRatio)
+                val dx = x - previousX
+                val dy = y - previousY
+                val length = sqrt(dx * dx + dy * dy)
+                tempDistance += length
+                Point(
+                    position = Vector2(x, y),
+                    time = time - startTime,
+                    length = length,
+                    distance = tempDistance,
+                    realCoordinates = Vector2(a.latitude, a.longitude),
+                    elevation = b.elevation
+                )
+            }
+        )
     }
 
-    val flattenedCoordinates = coordinates.flatten()
+    val flattenedCoordinates = coordinates.map { it.second }.flatten()
     val xCoordinates = flattenedCoordinates.map { it.position.x }
     val left = xCoordinates.min()
     val right = xCoordinates.max()
@@ -97,9 +96,10 @@ fun transformToPixelCoordinates(
     val bottom = yCoordinates.max()
 
     return PixelsTransformation(
-        routes = coordinates.map {
+        segments = coordinates.map {
+            val pointList = it.second
             Route(
-                points = it.map { coordinate ->
+                points = pointList.map { coordinate ->
                     val x = (coordinate.position.x - left) * scale
                     val y = height - (coordinate.position.y - top) * scale
                     Point(
@@ -111,7 +111,8 @@ fun transformToPixelCoordinates(
                         coordinate.elevation
                     )
                 },
-                totalTime = it.last().time - it.first().time
+                totalTime = pointList.last().time - pointList.first().time,
+                name = it.first
             )
         },
         width = (right - left) * scale,
@@ -132,9 +133,9 @@ class Point(
     val elevation: Double
 )
 
-class Route(val points: List<Point>, val totalTime: Long = 0L)
+class Route(val points: List<Point>, val totalTime: Long = 0L, name: String)
 class PixelsTransformation(
-    val routes: List<Route>,
+    val segments: List<Route>,
     val width: Double,
     val height: Double,
     val scale: Double = 1.0,
