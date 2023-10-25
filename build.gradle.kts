@@ -117,6 +117,8 @@ repositories {
 dependencies {
 
     implementation(libs.jpx)
+//    implementation(libs.geotools)
+    implementation(libs.geotoolsExtension)
     implementation(libs.geotoolsShapefile)
     implementation(libs.geotoolsEpsgHsqldb)
 
@@ -202,7 +204,7 @@ tasks {
 
 tasks.register<Zip>("jpackageZip") {
     archiveFileName.set("openrndr-application.zip")
-    from("$buildDir/jpackage") {
+    from("${layout.buildDirectory}/jpackage") {
         include("**/*")
     }
 }

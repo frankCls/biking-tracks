@@ -2,15 +2,9 @@ package gpx
 
 import io.jenetics.jpx.GPX
 import io.jenetics.jpx.WayPoint
-import org.openrndr.math.Vector2
 import java.io.File
 import java.nio.file.Files
 import java.util.stream.Collectors
-import kotlin.math.cos
-import kotlin.math.sqrt
-
-
-
 
 fun readWayPoints(directory: String): List<List<WayPoint>> {
 
@@ -36,4 +30,3 @@ fun readWayPoints(directory: String): List<List<WayPoint>> {
     }
     return wayPoints.toList()
 }
-

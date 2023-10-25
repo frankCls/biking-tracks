@@ -6,6 +6,31 @@ import kotlin.math.sqrt
 
 private const val EARTH_RADIUS = 6_371_000.0 // meters
 
+/**
+ * calculates a latitude and longitude from a pixel coordinate given the translation, the center coordinates of the map, the center coordinate,
+ * the aspect ratio and the scale.
+ */
+fun calculateCoordinates(
+    x: Double,
+    y: Double,
+    translation: Vector2,
+    centerLatitude: Double,
+    centerLongitude: Double,
+    aspectRatio: Double,
+    scale: Double
+): Pair<Double, Double> {
+    val x0 = x / scale + translation.x
+    val y0 = y / scale + translation.y
+    val longitude = centerLongitude + x0 / (EARTH_RADIUS * aspectRatio)
+    val latitude = centerLatitude + y0 / EARTH_RADIUS
+    return Pair(Math.toDegrees(latitude), Math.toDegrees(longitude))
+}
+
+
+
+
+
+
 fun calculatePixelCoordinate(latitude: Double, longitude: Double, aspectRatio: Double): Pair<Double, Double> {
     return Pair(
         EARTH_RADIUS * Math.toRadians(longitude) * aspectRatio,

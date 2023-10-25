@@ -1,17 +1,15 @@
 import gpx.*
 import org.openrndr.application
 import org.openrndr.color.ColorRGBa
-import org.openrndr.draw.isolatedWithTarget
-import org.openrndr.draw.loadFont
-import org.openrndr.draw.renderTarget
 import org.openrndr.extra.noise.Random
 import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.math.Vector2
 import org.openrndr.math.mod
-import pixels.GpsPoint
-import pixels.Point
-import pixels.transformToPixelCoordinates
-import shapefile.communes
+import geotools.communes
+import geotools.downloadAerialView
+import org.openrndr.draw.*
+import org.openrndr.math.map
+import pixels.*
 import java.io.File
 import java.time.Duration
 
@@ -40,6 +38,7 @@ fun main() {
         }
 
         oliveProgram {
+            val image = loadImage("data/images/test.png")
             //define colors
             val colors = listOf(
                 //        ColorRGBa.fromHex(0x001219),
@@ -84,6 +83,11 @@ fun main() {
             val minY = conversion.routes.minOf { it.points.minOf { point -> point.realCoordinates.y } }
             val maxY = conversion.routes.maxOf { it.points.maxOf { point -> point.realCoordinates.y } }
 
+            // get map
+
+
+//            downloadAerialView(minX, minY, maxX, maxY, conversion.width.toInt() * 2, conversion.height.toInt() * 2)
+            // load shapefile and convert to coordinates
             val shapefile = File("data/shapefile/belgium-communes/communes_L08.shp")
             val communes = communes(shapefile, left = minX, top = minY, right = maxX, bottom = maxY)
             val communesGpsPoints = communes.associate { commune ->
@@ -112,6 +116,10 @@ fun main() {
             var runningTour: Int = 0
             var tour: Tour
 
+            val backgroundAerialView = renderTarget(width, height) {
+                colorBuffer()
+            }
+
             val communesRenderTarget = renderTarget(width, height) {
                 colorBuffer()
             }
@@ -128,6 +136,8 @@ fun main() {
             val statisticsRenderTarget = renderTarget(width, height) {
                 colorBuffer()
             }
+
+
 
             drawer.isolatedWithTarget(communesRenderTarget) {
                 drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
@@ -148,7 +158,7 @@ fun main() {
                 drawer.clear(ColorRGBa.TRANSPARENT)
                 allTours.forEachIndexed { i, it ->
                     drawer.stroke = it.color.opacify(0.3)
-                    drawer.strokeWeight = 0.7
+                    drawer.strokeWeight = 0.5
                     drawer.lineSegments(it.coordinates.map { coord -> coord.position })
                 }
             }
@@ -183,12 +193,30 @@ fun main() {
                     )
                 }
 
+                drawer.isolatedWithTarget(backgroundAerialView) {
+                    drawer.clear(ColorRGBa.TRANSPARENT)
+//                drawer.drawStyle.colorMatrix = grayscale(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)
+                    drawer.drawStyle.colorMatrix =
+                        tint(
+                            ColorRGBa.WHITE.opacify(
+                                map(height.toDouble(), 0.0, 0.0, 1.0, mouse.position.y)
+                            )
+                        )
+                    drawer.image(
+                        image,
+                        (width - conversion.width) / 2,
+                        (height - conversion.height) / 2,
+                        conversion.width,
+                        conversion.height
+                    )
+                }
+
                 drawer.isolatedWithTarget(liveRoutesRenderTarget) {
                     drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
                     drawer.clear(ColorRGBa.TRANSPARENT)
 //                    drawer.stroke = hsl(counter * 90.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(1.0)
                     drawer.stroke = allTours[runningTour].color.opacify(1.0)
-                    drawer.strokeWeight = 4.0
+                    drawer.strokeWeight = 3.0
                     drawer.lineSegments(done.map { coord -> coord.position })
                 }
 
@@ -270,6 +298,7 @@ fun main() {
                     }
                 }
 
+                drawer.image(backgroundAerialView.colorBuffer(0))
                 drawer.image(communesRenderTarget.colorBuffer(0))
                 drawer.image(liveRoutesRenderTarget.colorBuffer(0))
                 drawer.image(routesRenderTarget.colorBuffer(0))
