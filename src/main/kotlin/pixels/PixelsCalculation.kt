@@ -6,39 +6,10 @@ import kotlin.math.sqrt
 
 private const val EARTH_RADIUS = 6_371_000.0 // meters
 
-/**
- * calculates a latitude and longitude from a pixel coordinate given the translation, the center coordinates of the map, the center coordinate,
- * the aspect ratio and the scale.
- */
-fun calculateCoordinates(
-    x: Double,
-    y: Double,
-    translation: Vector2,
-    centerLatitude: Double,
-    centerLongitude: Double,
-    aspectRatio: Double,
-    scale: Double
-): Pair<Double, Double> {
-    val x0 = x / scale + translation.x
-    val y0 = y / scale + translation.y
-    val longitude = centerLongitude + x0 / (EARTH_RADIUS * aspectRatio)
-    val latitude = centerLatitude + y0 / EARTH_RADIUS
-    return Pair(Math.toDegrees(latitude), Math.toDegrees(longitude))
-}
-
-
 fun calculatePixelCoordinate(latitude: Double, longitude: Double, aspectRatio: Double): Pair<Double, Double> {
     return Pair(
         EARTH_RADIUS * Math.toRadians(longitude) * aspectRatio,
         EARTH_RADIUS * Math.toRadians(latitude)
-    )
-}
-
-// calcalute the opposite as in calculatePixelCoordinate
-fun calculateRealCoordinate(x: Double, y: Double, aspectRatio: Double): Pair<Double, Double> {
-    return Pair(
-        Math.toDegrees(y / EARTH_RADIUS),
-        Math.toDegrees(x / (EARTH_RADIUS * aspectRatio))
     )
 }
 
@@ -56,7 +27,6 @@ data class GpsPoint(val latitude: Double, val longitude: Double, val time: Long,
  */
 fun transformToPixelCoordinates(
     gpsPoints: Map<String, List<GpsPoint>>,
-    scale: Double,
     width: Int,
     height: Int,
     border: Double = 0.0
@@ -103,18 +73,15 @@ fun transformToPixelCoordinates(
     val yCoordinates = flattenedCoordinates.map { it.position.y }
     val top = yCoordinates.min()
     val bottom = yCoordinates.max()
-//    val newScale = scale(width.toDouble(), height.toDouble(), Vector2(left, top), Vector2(right, bottom))
-    val calculatedScale = scale(width.toDouble(), height.toDouble(), Vector2(left, top), Vector2(right, bottom))
-    val newScale = calculatedScale
-    println("new scale: $calculatedScale")
+    val scale = scale(width.toDouble(), height.toDouble(), Vector2(left, top), Vector2(right, bottom))
 
     return PixelsTransformation(
         segments = coordinates.map {
             val pointList = it.second
             Route(
                 points = pointList.map { coordinate ->
-                    val x = (coordinate.position.x - (left + border)) * newScale
-                    val y = height - (coordinate.position.y - (top + border)) * newScale
+                    val x = (coordinate.position.x - (left + border)) * scale
+                    val y = height - (coordinate.position.y - (top + border)) * scale
                     Point(
                         position = Vector2(x, y),
                         coordinate.time,
@@ -128,9 +95,9 @@ fun transformToPixelCoordinates(
                 name = it.first
             )
         },
-        width = (right - left - (border * 2)) * newScale,
-        height = (bottom - top - (border * 2)) * newScale,
-        scale = newScale,
+        width = (right - left - (border * 2)) * scale,
+        height = (bottom - top - (border * 2)) * scale,
+        scale = scale,
         aspectRatio = aspectRatio,
         centerLatidude = centerLatitude,
         centerLongitude = centerLongitude
@@ -151,19 +118,13 @@ class PixelsTransformation(
     val segments: List<Route>,
     val width: Double,
     val height: Double,
-    val scale: Double = 1.0,
+    val scale: Double,
     val aspectRatio: Double = width / height,
     val centerLatidude: Double = 0.0,
     val centerLongitude: Double = 0.0
 )
 
 
-//fun scale(width: Double, height: Double, topLeft:Vector2, bottomRight:Vector2):Double {
-//    //calculate scaling factor for rectangle with top left and bottom right coordinates that should fit in the given width and height
-//    val xScale = width / (bottomRight.x - topLeft.x)
-//}
-
-// provide a function that calculates how to scale a rectangle with top left and bottom right coordinates to fit in a rectangle with the given width and height, respecting the aspect ratio of both the rectangles.
 fun scale(width: Double, height: Double, topLeft: Vector2, bottomRight: Vector2): Double {
     val aspectRatio = width / height
     val otherAspectRatio = (bottomRight.x - topLeft.x) / (bottomRight.y - topLeft.y)
