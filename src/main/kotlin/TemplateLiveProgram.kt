@@ -43,7 +43,6 @@ fun main() {
                 return if (width / height > conversion.aspectRatio) {
                     Vector2(
                         (width - conversion.width) / 2,
-//                        0.0,
                         0.0
                     )
                 } else {
