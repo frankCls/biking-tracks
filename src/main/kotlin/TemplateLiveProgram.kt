@@ -6,9 +6,10 @@ import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.math.Vector2
 import org.openrndr.math.mod
 import geotools.communes
-import geotools.downloadAerialView
 import org.openrndr.draw.*
 import org.openrndr.math.map
+import org.openrndr.shape.Segment
+import org.openrndr.shape.ShapeContour
 import pixels.*
 import java.io.File
 import java.time.Duration
@@ -38,6 +39,25 @@ fun main() {
         }
 
         oliveProgram {
+            fun translation(conversion: PixelsTransformation): Vector2 {
+                return if (width / height > conversion.aspectRatio) {
+                    Vector2(
+                        (width - conversion.width) / 2,
+                        0.0
+                    )
+                } else {
+                    Vector2(
+                        0.0,
+                        (height - (height - conversion.height)) / 2
+                    )
+                }
+            }
+
+            fun translate(conversion: PixelsTransformation) {
+                val (first, second) = translation(conversion)
+                drawer.translate(first, second)
+            }
+
             val image = loadImage("data/images/test.png")
             //define colors
             val colors = listOf(
@@ -60,7 +80,7 @@ fun main() {
 
             // load gpx file and convert to coordinates
             val gpxFile = File("data/gpx")
-            val scale = 0.015
+//            val scale = 0.015
             val points = readWayPoints(gpxFile.absolutePath)
             val gpsPoints =
                 points
@@ -75,28 +95,34 @@ fun main() {
                         }
                     }.toMap()
 
-            val conversion = transformToPixelCoordinates(gpsPoints, scale, width, height)
+            val conversion = transformToPixelCoordinates(gpsPoints, width, height, border = 20.0)
 
             // calculate min and max latitudes and longitudes
-            val minX = conversion.routes.minOf { it.points.minOf { point -> point.realCoordinates.x } }
-            val maxX = conversion.routes.maxOf { it.points.maxOf { point -> point.realCoordinates.x } }
-            val minY = conversion.routes.minOf { it.points.minOf { point -> point.realCoordinates.y } }
-            val maxY = conversion.routes.maxOf { it.points.maxOf { point -> point.realCoordinates.y } }
-
-            // get map
+            val minLat = conversion.segments.minOf { it.points.minOf { point -> point.realCoordinates.x } }
+            val maxLat = conversion.segments.maxOf { it.points.maxOf { point -> point.realCoordinates.x } }
+            val minLong = conversion.segments.minOf { it.points.minOf { point -> point.realCoordinates.y } }
+            val maxLong = conversion.segments.maxOf { it.points.maxOf { point -> point.realCoordinates.y } }
 
 
-//            downloadAerialView(minX, minY, maxX, maxY, conversion.width.toInt() * 2, conversion.height.toInt() * 2)
+            val x1 = (width - conversion.width) / 2
+            val y1 = (height - conversion.height) / 2
+            val minX = conversion.segments.minOf { it.points.minOf { point -> point.position.x } } + x1
+            val maxX = conversion.segments.maxOf { it.points.maxOf { point -> point.position.x } } + x1
+            val minY = conversion.segments.minOf { it.points.minOf { point -> point.position.y } } + y1
+            val maxY = conversion.segments.maxOf { it.points.maxOf { point -> point.position.y } } + y1
+
+//            downloadAerialView(minLat, minLong, maxLat, maxLong, conversion.width.toInt() * 2, conversion.height.toInt() * 2)
+
             // load shapefile and convert to coordinates
             val shapefile = File("data/shapefile/belgium-communes/communes_L08.shp")
-            val communes = communes(shapefile, left = minX, top = minY, right = maxX, bottom = maxY)
+            val communes = communes(shapefile, left = minLat, top = minLong, right = maxLat, bottom = maxLong)
             val communesGpsPoints = communes.associate { commune ->
                 commune.name to
                         commune.geometry.map { coordinate -> GpsPoint(coordinate.x, coordinate.y, 0, 0.0) }
             }
-            val communesCoordinates = transformToPixelCoordinates(communesGpsPoints, scale, width, height).routes
+            val communesCoordinates = transformToPixelCoordinates(communesGpsPoints, width, height).segments
 
-            val allTours = conversion.routes
+            val allTours = conversion.segments
                 .shuffled()
                 .map { tour ->
                     val totalDistance = tour.points.sumOf { it.length }
@@ -122,6 +148,7 @@ fun main() {
 
             val communesRenderTarget = renderTarget(width, height) {
                 colorBuffer()
+                depthBuffer()
             }
 
             val routesRenderTarget = renderTarget(width, height) {
@@ -137,27 +164,36 @@ fun main() {
                 colorBuffer()
             }
 
-
-
             drawer.isolatedWithTarget(communesRenderTarget) {
-                drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
                 drawer.clear(ColorRGBa.TRANSPARENT)
+                translate(conversion)
                 drawer.stroke = ColorRGBa.WHITE.opacify(0.3)
-                drawer.strokeWeight = 0.1
-                communesCoordinates.forEach {
-                    drawer.lineSegments(
-                        it.points.map { point ->
-                            point.position
-                        })
+                drawer.fill = null
+                drawer.strokeWeight = 0.5
+                val contours = communesCoordinates.map {
+                    ShapeContour(
+                        it.points.zipWithNext { a, b ->
+                            Segment(
+                                Vector2(
+                                    a.position.x,
+                                    a.position.y
+                                ),
+                                Vector2(
+                                    b.position.x,
+                                    b.position.y
+                                )
+                            )
+                        }, false
+                    ).shape
                 }
+                drawer.shapes(contours)
             }
 
-
             drawer.isolatedWithTarget(routesRenderTarget) {
-                drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
+                translate(conversion)
                 drawer.clear(ColorRGBa.TRANSPARENT)
                 allTours.forEachIndexed { i, it ->
-                    drawer.stroke = it.color.opacify(0.3)
+                    drawer.stroke = it.color.opacify(0.6)
                     drawer.strokeWeight = 0.5
                     drawer.lineSegments(it.coordinates.map { coord -> coord.position })
                 }
@@ -195,26 +231,25 @@ fun main() {
 
                 drawer.isolatedWithTarget(backgroundAerialView) {
                     drawer.clear(ColorRGBa.TRANSPARENT)
-//                drawer.drawStyle.colorMatrix = grayscale(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0)
                     drawer.drawStyle.colorMatrix =
                         tint(
                             ColorRGBa.WHITE.opacify(
                                 map(height.toDouble(), 0.0, 0.0, 1.0, mouse.position.y)
                             )
                         )
+                    val (first, second) = translation(conversion)
                     drawer.image(
                         image,
-                        (width - conversion.width) / 2,
-                        (height - conversion.height) / 2,
+                        first,
+                        second,
                         conversion.width,
                         conversion.height
                     )
                 }
 
                 drawer.isolatedWithTarget(liveRoutesRenderTarget) {
-                    drawer.translate(Vector2((width - conversion.width) / 2, (conversion.height - height) / 2))
+                    translate(conversion)
                     drawer.clear(ColorRGBa.TRANSPARENT)
-//                    drawer.stroke = hsl(counter * 90.0 / allTours.size, 0.5, 0.3, 0.3).toRGBa().opacify(1.0)
                     drawer.stroke = allTours[runningTour].color.opacify(1.0)
                     drawer.strokeWeight = 3.0
                     drawer.lineSegments(done.map { coord -> coord.position })
@@ -298,12 +333,14 @@ fun main() {
                     }
                 }
 
-                drawer.image(backgroundAerialView.colorBuffer(0))
-                drawer.image(communesRenderTarget.colorBuffer(0))
+
+//                drawer.image(backgroundAerialView.colorBuffer(0))
+//                drawer.image(communesRenderTarget.colorBuffer(0))
                 drawer.image(liveRoutesRenderTarget.colorBuffer(0))
                 drawer.image(routesRenderTarget.colorBuffer(0))
                 drawer.image(elevationRenderTarget.colorBuffer(0))
                 drawer.image(statisticsRenderTarget.colorBuffer(0))
+
             }
         }
     }
@@ -322,3 +359,4 @@ fun formatDuration(time: Long): String {
 fun textPadded(text: String): String {
     return text.padEnd(20)
 }
+

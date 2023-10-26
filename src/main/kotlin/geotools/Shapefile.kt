@@ -71,15 +71,24 @@ fun communes(
 }
 
 fun main() {
+    val dir = "data/shapefile/"
+    val proj = "belgium-communes/communes_L08"
+//    val proj = "belgium-shapefile/be_100km"
+    val shapeFile = File("$dir/$proj.shp")
+    val projectFile = File("$dir/$proj.prj")
     // https://epsg.io/3812  ESPG:3812
     // https://8thlight.com/insights/geographic-coordinate-systems-101#:~:text=EPSG%3A4326%2C%20also%20known%20as,issues%20of%20the%20Web%20Mercator.
     // https://epsg.io/4326  EPSG:4326
-    val shapeFile = File("data/shapefile/belgium-communes/communes_L08.shp")
-//    val projectFile = File("data/shapefile/belgium-communes/communes_L08.prj")
-//    val lines = projectFile.readLines()
+//    val shapeFile = File("data/shapefile/belgium-communes/communes_L08.shp")
+//    val shapeFile = File("data/shapefile/belgium-shapefile/be_100km.shp")
+//    val projectFile = File("data/shapefile/belgium-shapefile/be_100km.prj")
+    val lines = projectFile.readLines()
 
-//    val parseWKT = CRS.parseWKT(lines[0])
-//    println(parseWKT)
+    val parseWKT = CRS.parseWKT(lines[0])
+    println(parseWKT)
+    parseWKT.identifiers.forEach {
+        println(it.code)
+    }
 
     val communes = communes(shapeFile, 205921.31170791126, 5640958.54765713, 279963.7620163895, 5692233.975375663)
     communes.forEach {
