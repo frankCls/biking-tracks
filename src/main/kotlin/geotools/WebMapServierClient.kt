@@ -38,6 +38,7 @@ fun downloadAerialView(minX: Double, minY: Double, maxX: Double, maxY: Double, w
     val bytes = response.inputStream.readAllBytes()
     val bufferedImage = ImageIO.read(ByteArrayInputStream(bytes))
     ImageIO.write(bufferedImage, "png", File("data/images/test.png"))
+    println("aerial view downloaded")
 }
 
 
