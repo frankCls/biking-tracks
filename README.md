@@ -4,7 +4,7 @@
 pip install komootgpx
 ```
 ```console
-komootgpx -m 'email' -p 'password' -a -f 'recorded' -o '/data/gpx' -d '2021-01-01' -t '2021-01-31'
+komootgpx -m 'email' -p 'password' -a -f 'recorded' -o './data/gpx'
 ```
 Make sure all files are in the same area, otherwise the map will be zoomed out too much.
 
