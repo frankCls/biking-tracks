@@ -6,31 +6,6 @@ import kotlin.math.sqrt
 
 private const val EARTH_RADIUS = 6_371_000.0 // meters
 
-/**
- * calculates a latitude and longitude from a pixel coordinate given the translation, the center coordinates of the map, the center coordinate,
- * the aspect ratio and the scale.
- */
-fun calculateCoordinates(
-    x: Double,
-    y: Double,
-    translation: Vector2,
-    centerLatitude: Double,
-    centerLongitude: Double,
-    aspectRatio: Double,
-    scale: Double
-): Pair<Double, Double> {
-    val x0 = x / scale + translation.x
-    val y0 = y / scale + translation.y
-    val longitude = centerLongitude + x0 / (EARTH_RADIUS * aspectRatio)
-    val latitude = centerLatitude + y0 / EARTH_RADIUS
-    return Pair(Math.toDegrees(latitude), Math.toDegrees(longitude))
-}
-
-
-
-
-
-
 fun calculatePixelCoordinate(latitude: Double, longitude: Double, aspectRatio: Double): Pair<Double, Double> {
     return Pair(
         EARTH_RADIUS * Math.toRadians(longitude) * aspectRatio,
@@ -52,9 +27,9 @@ data class GpsPoint(val latitude: Double, val longitude: Double, val time: Long,
  */
 fun transformToPixelCoordinates(
     gpsPoints: Map<String, List<GpsPoint>>,
-    scale: Double,
     width: Int,
-    height: Int
+    height: Int,
+    border: Double = 0.0
 ): PixelsTransformation {
 
     val gpsPointsList = gpsPoints.values.flatten()
@@ -64,30 +39,33 @@ fun transformToPixelCoordinates(
         gpsPointsList.map { Math.toRadians(it.longitude) }.average() // longitude close to the center of the map (λ0).
     val aspectRatio = cos(centerLatitude)
 
-    val coordinates = gpsPoints.values.map { tour ->
+    val coordinates = gpsPoints.entries.map { entry ->
+        val tour = entry.value
         var tempDistance = 0.0
         val startTime = tour.first().time
-
-        tour.zipWithNext { a, b ->
-            val (x, y) = calculatePixelCoordinate(b.latitude, b.longitude, aspectRatio)
-            val time = b.time
-            val (previousX, previousY) = calculatePixelCoordinate(a.latitude, a.longitude, aspectRatio)
-            val dx = x - previousX
-            val dy = y - previousY
-            val length = sqrt(dx * dx + dy * dy)
-            tempDistance += length
-            Point(
-                position = Vector2(x, y),
-                time = time - startTime,
-                length = length,
-                distance = tempDistance,
-                realCoordinates = Vector2(a.latitude, a.longitude),
-                elevation = b.elevation
-            )
-        }
+        Pair(
+            entry.key,
+            tour.zipWithNext { a, b ->
+                val (x, y) = calculatePixelCoordinate(b.latitude, b.longitude, aspectRatio)
+                val time = b.time
+                val (previousX, previousY) = calculatePixelCoordinate(a.latitude, a.longitude, aspectRatio)
+                val dx = x - previousX
+                val dy = y - previousY
+                val length = sqrt(dx * dx + dy * dy)
+                tempDistance += length
+                Point(
+                    position = Vector2(x, y),
+                    time = time - startTime,
+                    length = length,
+                    distance = tempDistance,
+                    realCoordinates = Vector2(a.latitude, a.longitude),
+                    elevation = b.elevation
+                )
+            }
+        )
     }
 
-    val flattenedCoordinates = coordinates.flatten()
+    val flattenedCoordinates = coordinates.map { it.second }.flatten()
     val xCoordinates = flattenedCoordinates.map { it.position.x }
     val left = xCoordinates.min()
     val right = xCoordinates.max()
@@ -95,13 +73,15 @@ fun transformToPixelCoordinates(
     val yCoordinates = flattenedCoordinates.map { it.position.y }
     val top = yCoordinates.min()
     val bottom = yCoordinates.max()
+    val scale = scale(width.toDouble(), height.toDouble(), Vector2(left, top), Vector2(right, bottom))
 
     return PixelsTransformation(
-        routes = coordinates.map {
+        segments = coordinates.map {
+            val pointList = it.second
             Route(
-                points = it.map { coordinate ->
-                    val x = (coordinate.position.x - left) * scale
-                    val y = height - (coordinate.position.y - top) * scale
+                points = pointList.map { coordinate ->
+                    val x = (coordinate.position.x - (left + border)) * scale
+                    val y = height - (coordinate.position.y - (top + border)) * scale
                     Point(
                         position = Vector2(x, y),
                         coordinate.time,
@@ -111,11 +91,12 @@ fun transformToPixelCoordinates(
                         coordinate.elevation
                     )
                 },
-                totalTime = it.last().time - it.first().time
+                totalTime = pointList.last().time - pointList.first().time,
+                name = it.first
             )
         },
-        width = (right - left) * scale,
-        height = (bottom - top) * scale,
+        width = (right - left - (border * 2)) * scale,
+        height = (bottom - top - (border * 2)) * scale,
         scale = scale,
         aspectRatio = aspectRatio,
         centerLatidude = centerLatitude,
@@ -132,13 +113,26 @@ class Point(
     val elevation: Double
 )
 
-class Route(val points: List<Point>, val totalTime: Long = 0L)
+class Route(val points: List<Point>, val totalTime: Long = 0L, name: String)
 class PixelsTransformation(
-    val routes: List<Route>,
+    val segments: List<Route>,
     val width: Double,
     val height: Double,
-    val scale: Double = 1.0,
+    val scale: Double,
     val aspectRatio: Double = width / height,
     val centerLatidude: Double = 0.0,
     val centerLongitude: Double = 0.0
 )
+
+
+fun scale(width: Double, height: Double, topLeft: Vector2, bottomRight: Vector2): Double {
+    val aspectRatio = width / height
+    val otherAspectRatio = (bottomRight.x - topLeft.x) / (bottomRight.y - topLeft.y)
+    return if (aspectRatio > otherAspectRatio) {
+        height / (bottomRight.y - topLeft.y)
+    } else {
+        width / (bottomRight.x - topLeft.x)
+    }
+}
+
+
