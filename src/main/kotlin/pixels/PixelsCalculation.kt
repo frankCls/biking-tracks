@@ -4,7 +4,9 @@ import org.openrndr.math.Vector2
 import kotlin.math.cos
 import kotlin.math.sqrt
 
-private const val EARTH_RADIUS = 6_371_000.0 // meters
+import config.AppConstants
+
+private const val EARTH_RADIUS = AppConstants.EARTH_RADIUS
 
 /**
  * calculates a latitude and longitude from a pixel coordinate given the translation, the center coordinates of the map, the center coordinate,

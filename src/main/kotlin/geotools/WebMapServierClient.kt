@@ -1,5 +1,6 @@
 package geotools
 
+import config.AppConstants
 import org.geotools.ows.wms.WMSUtils
 import org.geotools.ows.wms.WebMapServer
 import org.geotools.ows.wms.response.GetMapResponse
@@ -11,7 +12,7 @@ import javax.imageio.ImageIO
 fun downloadAerialView(minX: Double, minY: Double, maxX: Double, maxY: Double, width: Int, height: Int): Unit {
 
     val wms =
-        WebMapServer(URL("https://wms.ngi.be/inspire/ortho/service?request=GetCapabilities&service=WMS&version=1.3.0"))
+        WebMapServer(URL(AppConstants.WMS_SERVICE_URL))
     val capabilities = wms.capabilities
     val r = capabilities.request
     val legendGraphic = r.getLegendGraphic
@@ -24,8 +25,8 @@ fun downloadAerialView(minX: Double, minY: Double, maxX: Double, maxY: Double, w
     val layer = capabilities.layer.children[0]
 
     request.finalURL
-    request.setSRS("EPSG:4326")
-    request.setFormat("image/png")
+    request.setSRS(AppConstants.SRS_EPSG_4326)
+    request.setFormat(AppConstants.IMAGE_FORMAT_PNG)
     //A string representing a bounding box in the format "minx,miny,maxx,maxy"
     request.setBBox("$minX,$minY,$maxX,$maxY")
 //    request.setBBox(layer.boundingBoxes["EPSG:4326"])
@@ -37,13 +38,13 @@ fun downloadAerialView(minX: Double, minY: Double, maxX: Double, maxY: Double, w
     val response = wms.issueRequest(request) as GetMapResponse
     val bytes = response.inputStream.readAllBytes()
     val bufferedImage = ImageIO.read(ByteArrayInputStream(bytes))
-    ImageIO.write(bufferedImage, "png", File("data/images/test.png"))
+    ImageIO.write(bufferedImage, "png", File(AppConstants.TEST_IMAGE_PATH))
 }
 
 
 fun main() {
     val wms =
-        WebMapServer(URL("https://wms.ngi.be/inspire/ortho/service?request=GetCapabilities&service=WMS&version=1.3.0"))
+        WebMapServer(URL(AppConstants.WMS_SERVICE_URL))
     val capabilities = wms.capabilities
     val r = capabilities.request
     val legendGraphic = r.getLegendGraphic
@@ -56,16 +57,16 @@ fun main() {
     val layer = capabilities.layer.children[0]
 
     request.finalURL
-    request.setSRS("EPSG:4326")
-    request.setFormat("image/png")
+    request.setSRS(AppConstants.SRS_EPSG_4326)
+    request.setFormat(AppConstants.IMAGE_FORMAT_PNG)
     request.setBBox(layer.boundingBoxes["EPSG:4326"])
     request.setTransparent(true)
-    request.setDimensions("2326", "1680")
+    request.setDimensions(AppConstants.WMS_WIDTH, AppConstants.WMS_HEIGHT)
     request.addLayer(layers[0])
     request.addLayer(layers[1])
 
     val response = wms.issueRequest(request) as GetMapResponse
     val bytes = response.inputStream.readAllBytes()
     val bufferedImage = ImageIO.read(ByteArrayInputStream(bytes))
-    ImageIO.write(bufferedImage, "png", File("data/images/test.png"))
+    ImageIO.write(bufferedImage, "png", File(AppConstants.TEST_IMAGE_PATH))
 }

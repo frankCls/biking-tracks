@@ -1,5 +1,6 @@
 package geotools
 
+import config.AppConstants
 import org.geotools.data.FeatureSource
 import org.geotools.data.FileDataStoreFinder
 import org.geotools.feature.FeatureCollection
@@ -16,8 +17,8 @@ import org.opengis.referencing.operation.MathTransform
 import java.io.File
 
 val geometryFactory = GeometryFactory()
-val sourceCrs: CoordinateReferenceSystem = CRS.decode("EPSG:3812")
-val targetCrs: CoordinateReferenceSystem = CRS.decode("EPSG:4326")
+val sourceCrs: CoordinateReferenceSystem = CRS.decode(AppConstants.SRS_EPSG_3812)
+val targetCrs: CoordinateReferenceSystem = CRS.decode(AppConstants.SRS_EPSG_4326)
 
 val mathTransform: MathTransform = CRS.findMathTransform(sourceCrs, targetCrs, false)
 
@@ -81,7 +82,7 @@ fun main() {
 //    val parseWKT = CRS.parseWKT(lines[0])
 //    println(parseWKT)
 
-    val communes = communes(shapeFile, 205921.31170791126, 5640958.54765713, 279963.7620163895, 5692233.975375663)
+    val communes = communes(shapeFile, AppConstants.SAMPLE_MIN_X, AppConstants.SAMPLE_MIN_Y, AppConstants.SAMPLE_MAX_X, AppConstants.SAMPLE_MAX_Y)
     communes.forEach {
         println("${it.name} ${it.nisCode} ${it.geometry[0]}")
     }
