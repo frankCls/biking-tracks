@@ -12,6 +12,8 @@ import org.openrndr.math.map
 import pixels.*
 import config.AppConstants
 import config.AppConstants.Colors
+import validation.ValidationResult
+import validation.CoordinateValidator
 import java.io.File
 import java.time.Duration
 
@@ -50,21 +52,55 @@ fun main() {
             // load gpx file and convert to coordinates
             val gpxFile = File(AppConstants.GPX_DIRECTORY)
             val scale = AppConstants.SCALE_FACTOR
+            
             val points = readWayPoints(gpxFile.absolutePath)
+            
+            if (points.isEmpty()) {
+                println("Error: No GPX files could be loaded successfully")
+                return@oliveProgram
+            }
+            
             val gpsPoints =
                 points
                     .mapIndexed { i, it ->
-                        "$i" to it.map { wayPoint ->
-                            GpsPoint(
-                                latitude = wayPoint.latitude.toDouble(),
-                                longitude = wayPoint.longitude.toDouble(),
-                                time = wayPoint.time.get().toEpochSecond(),
-                                elevation = wayPoint.elevation.get().toDouble()
-                            )
+                        "$i" to it.mapNotNull { wayPoint ->
+                            try {
+                                // Convert and validate GPS point
+                                val gpsPoint = GpsPoint(
+                                    latitude = wayPoint.latitude.toDouble(),
+                                    longitude = wayPoint.longitude.toDouble(),
+                                    time = wayPoint.time.get().toEpochSecond(),
+                                    elevation = wayPoint.elevation.get().toDouble()
+                                )
+                                
+                                // Additional validation (GPX already filtered basic coordinate validation)
+                                val validationResult = CoordinateValidator.validateGpsPoint(gpsPoint)
+                                if (validationResult is ValidationResult.Success) {
+                                    gpsPoint
+                                } else {
+                                    println("Warning: Skipping invalid GPS point: ${(validationResult as ValidationResult.Failure).error}")
+                                    null
+                                }
+                            } catch (e: Exception) {
+                                println("Warning: Error converting waypoint: ${e.message}")
+                                null
+                            }
                         }
                     }.toMap()
+                    .filter { it.value.isNotEmpty() }
 
-            val conversion = transformToPixelCoordinates(gpsPoints, scale, width, height)
+            if (gpsPoints.isEmpty()) {
+                println("Error: No valid GPS routes found after processing")
+                return@oliveProgram
+            }
+            
+            val conversionResult = transformToPixelCoordinates(gpsPoints, scale, width, height)
+            if (conversionResult is ValidationResult.Failure) {
+                println("Error converting GPS points to pixels: ${conversionResult.error}")
+                return@oliveProgram
+            }
+            
+            val conversion = (conversionResult as ValidationResult.Success<PixelsTransformation>).value
 
             // calculate min and max latitudes and longitudes
             val minX = conversion.routes.minOf { it.points.minOf { point -> point.realCoordinates.x } }
@@ -78,12 +114,38 @@ fun main() {
             downloadAerialView(minX, minY, maxX, maxY, conversion.width.toInt() * AppConstants.MAP_SCALE_MULTIPLIER, conversion.height.toInt() * AppConstants.MAP_SCALE_MULTIPLIER)
             // load shapefile and convert to coordinates
             val shapefile = File(AppConstants.SHAPEFILE_PATH)
-            val communes = communes(shapefile, left = minX, top = minY, right = maxX, bottom = maxY)
-            val communesGpsPoints = communes.associate { commune ->
-                commune.name to
-                        commune.geometry.map { coordinate -> GpsPoint(coordinate.x, coordinate.y, 0, 0.0) }
+            val communesResult = communes(shapefile, left = minX, top = minY, right = maxX, bottom = maxY)
+            
+            val communesCoordinates = if (communesResult is ValidationResult.Success) {
+                val communes = communesResult.value
+                val communesGpsPoints = communes.associate { commune ->
+                    commune.name to
+                            commune.geometry.mapNotNull { coordinate ->
+                                try {
+                                    GpsPoint(coordinate.x, coordinate.y, 0, 0.0)
+                                } catch (e: Exception) {
+                                    println("Warning: Error converting commune coordinate: ${e.message}")
+                                    null
+                                }
+                            }
+                }.filter { it.value.isNotEmpty() }
+                
+                if (communesGpsPoints.isNotEmpty()) {
+                    val communesConversionResult = transformToPixelCoordinates(communesGpsPoints, scale, width, height)
+                    if (communesConversionResult is ValidationResult.Success) {
+                        communesConversionResult.value.routes
+                    } else {
+                        println("Warning: Error converting communes to pixels: ${(communesConversionResult as ValidationResult.Failure).error}")
+                        emptyList<Route>()
+                    }
+                } else {
+                    println("Warning: No valid commune GPS points found")
+                    emptyList<Route>()
+                }
+            } else {
+                println("Warning: Error loading communes: ${(communesResult as ValidationResult.Failure).error}")
+                emptyList<Route>()
             }
-            val communesCoordinates = transformToPixelCoordinates(communesGpsPoints, scale, width, height).routes
 
             val allTours = conversion.routes
                 .shuffled()
@@ -133,11 +195,21 @@ fun main() {
                 drawer.clear(Colors.TRANSPARENT)
                 drawer.stroke = Colors.WHITE.opacify(AppConstants.COMMUNE_OPACITY)
                 drawer.strokeWeight = AppConstants.THIN_STROKE_WEIGHT
-                communesCoordinates.forEach {
-                    drawer.lineSegments(
-                        it.points.map { point ->
-                            point.position
-                        })
+                
+                // Only draw communes if we have valid data
+                if (communesCoordinates.isNotEmpty()) {
+                    communesCoordinates.forEach { route ->
+                        if (route.points.isNotEmpty()) {
+                            try {
+                                drawer.lineSegments(
+                                    route.points.map { point ->
+                                        point.position
+                                    })
+                            } catch (e: Exception) {
+                                println("Warning: Error drawing commune route: ${e.message}")
+                            }
+                        }
+                    }
                 }
             }
 
