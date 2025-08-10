@@ -8,6 +8,31 @@ komootgpx -m 'email' -p 'password' -a -f 'recorded' -o './data/gpx'
 ```
 Make sure all files are in the same area, otherwise the map will be zoomed out too much.
 
+## Coordinate System Transformations
+
+This project uses a sophisticated coordinate transformation pipeline to convert GPS coordinates from GPX files into pixel coordinates for visualization:
+
+### Coordinate Reference Systems (CRS)
+- **Source CRS**: EPSG:3812 (Belgian Lambert 2008) - Used by Belgian shapefile data
+- **Target CRS**: EPSG:4326 (WGS84 latitude/longitude) - Standard GPS coordinate system
+- **Projection**: Equirectangular projection for pixel coordinate conversion
+
+### Transformation Pipeline
+1. **GPS to Meter Coordinates**: Convert latitude/longitude to x,y coordinates in meters using equirectangular projection:
+   - `x = R * λ * cos(φ₀)` where R is Earth radius, λ is longitude, φ₀ is center latitude
+   - `y = R * φ` where φ is latitude
+   - See [Equirectangular Projection](https://en.wikipedia.org/wiki/Equirectangular_projection)
+
+2. **Normalization**: Center and scale coordinates to fit the visualization canvas
+3. **Pixel Mapping**: Transform normalized coordinates to screen pixel positions
+
+### Key Parameters
+- **Earth Radius**: 6,371,000 meters (used in distance calculations)
+- **Aspect Ratio**: `cos(center_latitude)` compensates for longitude compression at higher latitudes
+- **Scale Factor**: Configurable scaling to fit routes within display bounds
+
+The transformation ensures accurate geographic relationships are preserved while fitting diverse route data into a unified visual representation.
+
 # OPENRNDR template project
 
 A feature rich template for creating OPENRNDR programs based on [Gradle/Kts](https://en.wikipedia.org/wiki/Gradle).
