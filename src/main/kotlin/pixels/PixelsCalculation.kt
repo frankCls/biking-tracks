@@ -118,7 +118,7 @@ fun transformToPixelCoordinates(
         height = (bottom - top) * scale,
         scale = scale,
         aspectRatio = aspectRatio,
-        centerLatidude = centerLatitude,
+        centerLatitude = centerLatitude,
         centerLongitude = centerLongitude
     )
 }
@@ -139,6 +139,6 @@ class PixelsTransformation(
     val height: Double,
     val scale: Double = 1.0,
     val aspectRatio: Double = width / height,
-    val centerLatidude: Double = 0.0,
+    val centerLatitude: Double = 0.0,
     val centerLongitude: Double = 0.0
 )
