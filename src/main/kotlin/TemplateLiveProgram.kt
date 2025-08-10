@@ -86,7 +86,7 @@ fun main() {
             // get map
 
 
-//            downloadAerialView(minX, minY, maxX, maxY, conversion.width.toInt() * 2, conversion.height.toInt() * 2)
+            downloadAerialView(minX, minY, maxX, maxY, conversion.width.toInt() * 2, conversion.height.toInt() * 2)
             // load shapefile and convert to coordinates
             val shapefile = File("data/shapefile/belgium-communes/communes_L08.shp")
             val communes = communes(shapefile, left = minX, top = minY, right = maxX, bottom = maxY)
