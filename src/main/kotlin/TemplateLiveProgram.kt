@@ -6,7 +6,7 @@ import org.openrndr.extra.olive.oliveProgram
 import org.openrndr.math.Vector2
 import org.openrndr.math.mod
 import geotools.communes
-import geotools.downloadAerialView
+import geotools.downloadAerialViewCached
 import org.openrndr.draw.*
 import org.openrndr.math.map
 import pixels.*
@@ -40,7 +40,6 @@ fun main() {
         }
 
         oliveProgram {
-            val image = loadImage(AppConstants.TEST_IMAGE_PATH)
             //define colors
             val colors = Colors.ROUTE_PALETTE
 
@@ -108,10 +107,12 @@ fun main() {
             val minY = conversion.routes.minOf { it.points.minOf { point -> point.realCoordinates.y } }
             val maxY = conversion.routes.maxOf { it.points.maxOf { point -> point.realCoordinates.y } }
 
-            // get map
-
-
-            downloadAerialView(minX, minY, maxX, maxY, conversion.width.toInt() * AppConstants.MAP_SCALE_MULTIPLIER, conversion.height.toInt() * AppConstants.MAP_SCALE_MULTIPLIER)
+            // Download and cache aerial view (moved outside render loop)
+            // This will either use cached data or download and cache new data
+            downloadAerialViewCached(minX, minY, maxX, maxY, conversion.width.toInt() * AppConstants.MAP_SCALE_MULTIPLIER, conversion.height.toInt() * AppConstants.MAP_SCALE_MULTIPLIER)
+            
+            // Load the aerial view image (either from cache via file or freshly downloaded)
+            val aerialImage = loadImage(AppConstants.TEST_IMAGE_PATH)
             // load shapefile and convert to coordinates
             val shapefile = File(AppConstants.SHAPEFILE_PATH)
             val communesResult = communes(shapefile, left = minX, top = minY, right = maxX, bottom = maxY)
@@ -264,7 +265,7 @@ fun main() {
                             )
                         )
                     drawer.image(
-                        image,
+                        aerialImage,
                         (width - conversion.width) / 2,
                         (height - conversion.height) / 2,
                         conversion.width,
